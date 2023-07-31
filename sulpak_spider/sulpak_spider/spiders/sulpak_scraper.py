@@ -24,16 +24,19 @@ class SulpakScraperSpider(CrawlSpider):
     # start_urls = ["https://www.sulpak.kz/p/telefoniy_i_gadzhetiy"]
 
     custom_settings = {
-        'HTTP_PROXY': 'http://ingp3030607:2iYbbAyXG4@91.227.155.174:7951'
+        # 'HTTP_PROXY': 'http://ingp3030607:2iYbbAyXG4@91.227.155.174:7951'
     }
 
     rules = (
-        # Rule for navigating through different categories
         Rule(LinkExtractor(allow=r'^https://www.sulpak.kz/f/[a-zA-Z0-9_]+$'), follow=False, callback='parse_category'),
     )
 
+    def start_requests(self):
+        for url in self.start_urls:
+            print(f"Starting category: {url}")
+            yield scrapy.Request(url=url, callback=self.parse_category)    
+
     def parse_category(self, response):
-        # Extract names, current prices, and old prices from the current page
         breadcrumbs = response.css('.mobile-breadcrumb a::text, .mobile-breadcrumb span::text').getall()[1:]
         product_category = f"Сулпак / {' / '.join(breadcrumbs)}"
 
@@ -46,7 +49,6 @@ class SulpakScraperSpider(CrawlSpider):
             product_old_price = int(product_old_price_selector.replace(' ', '').replace('₸', '')) if product_old_price_selector else product_price
             product_url = 'https://www.sulpak.kz' + product.css('div.product__item-images-block a::attr(href)').get()
 
-            # Create an item object and yield the extracted data
             item = {
                 'sku': product_sku,
                 'title': product_title,
@@ -65,7 +67,6 @@ class SulpakScraperSpider(CrawlSpider):
             if 'page' not in response.url:
                 response = response.replace(url=response.url + '?page=1')
 
-            # Handle pagination
             current_page = int(response.url.split('=')[-1])
             last_page = int(response.css('li.pagination__end a::attr(data-url)').get().split('=')[-1])
 

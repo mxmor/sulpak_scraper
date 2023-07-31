@@ -5,6 +5,7 @@
 
 
 # useful for handling different item types with a single interface
+import time
 from itemadapter import ItemAdapter
 
 import psycopg2
@@ -25,7 +26,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env
 class SulpakSpiderPipeline:
     def __init__(self):
         self.bot = Bot(token=os.getenv('SULPAK_TELEGRAM_API_TOKEN'))
-        self.telegram_channel_id = os.getenv('SULPAK_TELEGRAM_CHANNEL_ID')
+        self.sulpak_channel_id = os.getenv('SULPAK_TELEGRAM_CHANNEL_ID')
+        self.discount_50_channel_id = os.getenv('DISCOUNT_50_CHANNEL_ID')
 
     def open_spider(self, spider):
         hostname = 'localhost'
@@ -88,15 +90,14 @@ class SulpakSpiderPipeline:
             self.cursor.execute("SELECT price_change FROM prices WHERE sku = %s ORDER BY parse_date DESC LIMIT 1", (sku,))
             last_price_change = self.cursor.fetchone()[0]
 
-        if price_change < -50 and price_change != last_price_change:
+        if price_change <= -10 and price_change != last_price_change:
             message = f"<b>{title}</b>\n{category}\n\n"
             self.cursor.execute("SELECT parse_date, price, price_change FROM prices WHERE sku = %s ORDER BY parse_date DESC LIMIT 6", (sku,))
             price_history = self.cursor.fetchall()
             for price_record in price_history:
-                parse_date, price, price_change = price_record
-                message += f"{parse_date.strftime('%d.%m.%Y')}: {'{:,}'.format(price).replace(',', ' ')} \N{TENGE SIGN} ({price_change}%)\n"
-            message += f"\n{url}"
-
+                parse_date_msg, price_msg, price_change_msg = price_record
+                message += f"{parse_date_msg.strftime('%d.%m.%Y')}: {'{:,}'.format(price_msg).replace(',', ' ')} \N{TENGE SIGN} ({price_change_msg}%)\n"
+            message += f"\n{url}"    
 
             query = urllib.parse.quote_plus(title)
             google_url = f"https://google.com/search?q={query}"
@@ -106,9 +107,12 @@ class SulpakSpiderPipeline:
             yandex_button = InlineKeyboardButton(text="Yandex", url=yandex_url)
             kaspi_button = InlineKeyboardButton(text="Kaspi", url=kaspi_url)
             keyboard = InlineKeyboardMarkup([[yandex_button, kaspi_button, google_button]])
-            await self.bot.send_message(chat_id=self.telegram_channel_id, text=message, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-            await asyncio.sleep(3)
-
+            
+            if price_change <= -50:
+                await self.bot.send_message(chat_id=self.discount_50_channel_id, text=message, reply_markup=keyboard, parse_mode=ParseMode.HTML, pool_timeout=30)
+                time.sleep(3)
+            await self.bot.send_message(chat_id=self.sulpak_channel_id, text=message, reply_markup=keyboard, parse_mode=ParseMode.HTML, pool_timeout=30)
+            time.sleep(3)
 
         self.connection.commit()
         return item 

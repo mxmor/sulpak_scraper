@@ -9,6 +9,7 @@ NEWSPIDER_MODULE = "sulpak_spider.spiders"
 
 ROBOTSTXT_OBEY = False
 
+LOG_LEVEL = 'WARNING'
 
 AUTOTHROTTLE_ENABLED = True
 
